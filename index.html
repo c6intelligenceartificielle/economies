@@ -49,10 +49,11 @@ label input{width:100%;margin-top:4px}
 <h1>Sans tabac depuis <span id="since"></span></h1>
 
 <div class="card">
-  <div class="sub">Disponible (hors achats déjà faits)</div>
-  <div class="big" id="avail">0,00 €</div>
-  <div class="sub" id="total"></div>
+  <div class="sub">Économisé depuis le début</div>
+  <div class="big" id="tot">0,00 €</div>
   <div class="grid">
+    <div><b id="spent">–</b><span>dépensé (achats wishlist)</span></div>
+    <div><b id="avail" style="color:var(--acc)">–</b><span>disponible aujourd'hui</span></div>
     <div><b id="days">–</b><span>sans fumer</span></div>
     <div><b id="cigs">–</b><span>cigarettes évitées</span></div>
     <div><b id="perweek">–</b><span>économisés / semaine</span></div>
@@ -69,6 +70,11 @@ label input{width:100%;margin-top:4px}
     <button>+</button>
   </form>
   <div class="sub" style="margin-top:8px">Les envies sont financées dans l'ordre de la liste.</div>
+</div>
+
+<div class="card" id="boughtCard" style="display:none">
+  <h2>✅ Déjà achetés</h2>
+  <div id="blist"></div>
 </div>
 
 <div class="card">
@@ -100,18 +106,25 @@ function render(){
   const spent=S.wish.filter(w=>w.bought).reduce((a,w)=>a+w.price,0);
   const avail=total-spent;
   $('since').textContent=new Date(start).toLocaleDateString('fr-FR',{day:'numeric',month:'long'});
+  $('tot').textContent=eur(total);
+  $('spent').textContent=eur(spent);
   $('avail').textContent=eur(avail);
-  $('total').textContent='Total économisé : '+eur(total)+(spent?' · dépensé : '+eur(spent):'');
   const d=Math.floor(days),h=Math.floor((days-d)*24);
   $('days').textContent=d+' j '+h+' h';
   $('cigs').textContent=Math.floor(days*S.cpd).toLocaleString('fr-FR');
   $('perweek').textContent=eur(perDay()*7);
   $('peryear').textContent=eur(perDay()*365);
 
-  let cum=0,html='';
+  let cum=0,html='',bhtml='';
   S.wish.forEach((w,i)=>{
     let info='';
-    if(w.bought){info='<span class="sub">Acheté ✔</span>'}
+    if(w.bought){
+      const dt=w.boughtAt?' le '+new Date(w.boughtAt).toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}):'';
+      bhtml+='<div class="item"><div class="top"><span>'+esc(w.name)+'</span><span>− '+eur(w.price)+'</span></div>'
+        +'<div class="sub">Acheté'+dt+'</div>'
+        +'<div class="acts"><button class="ghost" data-a="buy" data-i="'+i+'">Annuler l\'achat</button></div></div>';
+      return;
+    }
     else{
       cum+=w.price;
       const funded=Math.max(0,Math.min(1,avail/cum>=1?1:(avail-(cum-w.price))/w.price));
@@ -133,6 +146,7 @@ function render(){
       +'<button class="ghost" data-a="buy" data-i="'+i+'">'+(w.bought?'Annuler achat':'Acheté')+'</button>'
       +'<button class="ghost" data-a="del" data-i="'+i+'">Suppr.</button></div></div>';
   });
+  $('blist').innerHTML=bhtml;$('boughtCard').style.display=bhtml?'block':'none';
   $('list').innerHTML=html||'<div class="sub">Ajoute ta première envie ci-dessous.</div>';
 }
 
@@ -143,11 +157,12 @@ $('add').onsubmit=e=>{
   S.wish.push({name:$('n').value.trim(),price:p,bought:false});
   $('n').value='';$('p').value='';save();render();
 };
-$('list').onclick=e=>{
+document.body.onclick=e=>{
   const b=e.target.closest('button');if(!b)return;
   const i=+b.dataset.i,a=b.dataset.a,w=S.wish;
+  if(!a)return;
   if(a==='del'){if(!confirm('Supprimer « '+w[i].name+' » ?'))return;w.splice(i,1)}
-  if(a==='buy')w[i].bought=!w[i].bought;
+  if(a==='buy'){w[i].bought=!w[i].bought;w[i].boughtAt=w[i].bought?Date.now():null}
   if(a==='up')[w[i-1],w[i]]=[w[i],w[i-1]];
   if(a==='dn')[w[i+1],w[i]]=[w[i],w[i+1]];
   save();render();
